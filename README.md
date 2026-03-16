@@ -1,8 +1,8 @@
-## Marked 2 - Integrate Obsidian with Marked
+## Marked 3 - Integrate Obsidian with Marked
 
 [![Validate Plugin Entry](https://github.com/obsidianmd/obsidian-releases/actions/workflows/validate-plugin-entry.yml/badge.svg)](https://github.com/obsidianmd/obsidian-releases/actions/workflows/validate-plugin-entry.yml)
 
-Open or the current note or monitor current vault in [Marked 2](https://marked2app.com).
+Open or the current note or monitor current vault in [Marked 3](https://markedapp.com).
 
 ### How to use
 
@@ -10,7 +10,7 @@ Use the commands via the Command Palette (type <kbd>cmd</kbd>+<kbd>p</kbd>, then
 
 ### How it works
 
-The plugin uses Marked 2's URL handler to open the current note in Marked. Changes will show up with ~2s delay.
+The plugin uses Marked 3's URL handler to open the current note in Marked. Changes will show up with ~2s delay.
 
 If you use the command "Open Vault in Marked," the Marked preview will show the most recently-modified file in your vault, which will be the current note. In order to switch to a new note in the preview, you need to make an edit, but hitting <kbd>Space</kbd> anywhere in the note will update the Marked preview to the new note.
 
