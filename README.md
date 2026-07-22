@@ -16,7 +16,7 @@ If you use the command "Open Vault in Marked," the Marked preview will show the 
 
 ### Installing the plugin
 
-Search Obsidian's Community Plugins gallery for "marked" and select "Install."
+This plugin is not currently available in the Obsidian plugin directory, and must be installed manually.
 
 ### Manually installing the plugin
 
