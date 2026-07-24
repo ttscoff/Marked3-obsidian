@@ -21,10 +21,9 @@ p_content.sub!(/"version": ".*?"/, "\"version\": \"#{new_ver}\"")
 File.open(manifest, 'w') { |f| f.puts content }
 File.open(package, 'w') { |f| f.puts p_content }
 
-`npm run build`
+system('npm run build') or abort('build failed')
 
-`git commit -a -m "version bump"`
-`git push`
-`gh release create #{new_ver} --generate-notes manifest.json main.js`
-`git pull`
-
+system('git add -A') or abort
+system('git', 'commit', '-m', "version bump #{new_ver}") or abort
+system('git push') or abort
+system('gh', 'release', 'create', new_ver, '--generate-notes', 'manifest.json', 'main.js') or abort

@@ -1,23 +1,39 @@
-## Marked 3 - Integrate Obsidian with Marked
+## Open in Marked
 
-[![Validate Plugin Entry](https://github.com/obsidianmd/obsidian-releases/actions/workflows/validate-plugin-entry.yml/badge.svg)](https://github.com/obsidianmd/obsidian-releases/actions/workflows/validate-plugin-entry.yml)
+Open the current note, or monitor the current vault, in [Marked 3](https://markedapp.com).
 
-Open or the current note or monitor current vault in [Marked 3](https://markedapp.com).
+### Requirements
+
+- macOS
+- [Marked 3](https://markedapp.com) installed
+- Desktop Obsidian (`isDesktopOnly`)
 
 ### How to use
 
-Use the commands via the Command Palette (type <kbd>cmd</kbd>+<kbd>p</kbd>, then search for "Marked"). Or, assign hotkeys to those commands in Obsidian's hotkey preferences.
+Use the commands via the Command Palette (<kbd>cmd</kbd>+<kbd>p</kbd>, then search for "Marked"), click the ribbon icon, or assign hotkeys in Obsidian's hotkey preferences.
 
 ### How it works
 
-The plugin uses Marked 3's URL handler to open the current note in Marked. Changes will show up with ~2s delay.
+The plugin reads the absolute path of the active note or vault on disk, then asks macOS to open Marked 3 via its `x-marked-3://` URL handler (`open`). Marked shows changes with about a 2s delay.
 
-If you use the command "Open Vault in Marked," the Marked preview will show the most recently-modified file in your vault, which will be the current note. In order to switch to a new note in the preview, you need to make an edit, but hitting <kbd>Space</kbd> anywhere in the note will update the Marked preview to the new note.
+If you use **Open vault in Marked**, the Marked preview follows the most recently modified file in your vault. To switch the preview to another note, make an edit (hitting <kbd>Space</kbd> anywhere in the note is enough).
 
-### Installing the plugin
+### Disclosures
 
-This plugin is not currently available in the Obsidian plugin directory, and must be installed manually.
+- Requires Marked 3, a separate paid macOS app.
+- Uses Node.js APIs on desktop only to run `open` with a Marked URL.
+- Reads absolute filesystem paths for files inside your vault so Marked can open them.
+
+### Installing from Community Plugins
+
+Search Community Plugins for "Open in Marked" and install it.
 
 ### Manually installing the plugin
 
-- Copy over `main.js` and `manifest.json` from [the latest release](https://github.com/ttscoff/Marked2-obsidian/releases/latest) to your vault folder in the directory `VaultFolder/.obsidian/plugins/Marked-obsidian/`.
+1. Download `main.js` and `manifest.json` from the [latest release](https://github.com/ttscoff/Marked3-obsidian/releases/latest).
+2. Create `VaultFolder/.obsidian/plugins/open-in-marked/`.
+3. Copy both files into that folder and enable the plugin in Obsidian settings.
+
+### License
+
+MIT

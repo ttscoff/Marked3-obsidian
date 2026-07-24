@@ -1,9 +1,9 @@
 {
-	"id": "marked-obsidian",
+	"id": "open-in-marked",
 	"name": "Open in Marked",
-	"version": "1.1.5",
+	"version": "1.2.0",
 	"minAppVersion": "1.5.12",
-	"description": "Open the current note/vault in Marked 3.",
+	"description": "Open the current note or vault in Marked 3.",
 	"author": "ttscoff",
 	"authorUrl": "https://brettterpstra.com",
 	"isDesktopOnly": true

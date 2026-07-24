@@ -1,5 +1,4 @@
-import { App, Notice, Platform, Plugin, PluginManifest, PluginSettingTab, Setting, TFile, FileSystemAdapter, addIcon } from 'obsidian';
-import { exec } from 'child_process';
+import { App, Notice, Platform, Plugin, PluginManifest, PluginSettingTab, Setting, FileSystemAdapter, addIcon } from 'obsidian';
 
 addIcon('Marked-logo-neutral', `<?xml version="1.0" encoding="UTF-8" standalone="no"?><!DOCTYPE svg PUBLIC "-//W3C//DTD SVG 1.1//EN" "http://www.w3.org/Graphics/SVG/1.1/DTD/svg11.dtd"><svg width="100%" height="100%" viewBox="0 0 78 49" version="1.1" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" xml:space="preserve" xmlns:serif="http://www.serif.com/" style="fill-rule:evenodd;clip-rule:evenodd;stroke-linejoin:round;stroke-miterlimit:2;"><use id="Artboard1" xlink:href="#_Image1" x="9" y="7" width="56px" height="38px"/><defs><image id="_Image1" width="56px" height="38px" xlink:href="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAADgAAAAmCAYAAACRWlj1AAAACXBIWXMAAA7EAAAOxAGVKw4bAAADk0lEQVRogd3azY+dUxwH8M+9c6e9HdN2lBJKlCHxWkrEwgKb7opIJDZio7EiJBJ/AImtP8BCWFgKEQsLIWEpkTZYqCLidUpGO7RmzIzFuY8+c+7zdk7vZKLf5GTuufOcb77f33n7nfPcKWnYh9vxKC7GMv7EWgLHHK7HQ7gTZ7Ey+tsVfezHvXgQU1jF6QSODZjH8ZGQ9VJZwQnc0IFjgNecC0jBsYYlPNNRy2H8gn8iLcv4VAhgJ/TxBI5GRFVlCZfW8MzjTZzpwPNKDccMXsC3NganqnyDy5qMzeBh/NaBrFx+HAWlCM41eDeh/brQK7MlLXM4IgQwRctbdeZewmIiWXmo3YW78ZXxIdS1vD3S8rrQ6zlalmJjh7GQKahcUnu9qqzi7wlo6UNPGBK/Ykfs+n+OK/FTH3e48MzBbYRuvH9rdWwabiYY/HBrdWwariMYPCpM6gsNewkGT+Ex55HmtGB5AhyrGW0uqvryPryI5/GkkBKlLs9n8BGeFtKza0cCU7eK7/CqkP/C94kcH3eJwvFE0pPOZTMF5qXvjYcqtJxO5DihQkyM3S3/jzFt/GSxXdhvzxczic/P0W5wkEhaNe5z9ti4TV+71hjDomEdBsI5KwVVz08ncjAeqFRzhZZ+m8Ec4ngodT6flTCM6rOVTzWjh8Gke5DxeXt5BseuqN54vqtBD7NNBrfJ68G9Uf3qDI59Uf2mDI4+djcZyJnYhPuWMm7J4Ih7/ZIMDtjRZjAHscH5DI74+mNbppbGOThtMotMjrh4mOdw9DDVtsjkbNDxEp+zD+6M6vGi0xXbN8NgLCY1A2F8m8hZiXvY1WQwZ4uAPVE9Zw+L21yVqaXRYGoeWuCKqF55bGlB3Os52RBMNxncn0kaRz9HXNwm1+CwyWDcE11RnrepyXqBeHrk8jQuMp9lki6WPueufj0bt6i/Mnn+aDL4tbS3RgXeK33OmX8Fyivp+xnt1/Fl0wMD/CztFH02EjZMbD92Mz3CrHC3k9J+QYehfY+0dwxPVXCczDD3QwXP47pffazgYJu5As91JH65pv0jGQaP1HC90UHLGp7taq7AQRyrIVxQfUlUYIjfE8wtas5+DqmfOp8LryL+Q2oqdqvwyniP8Kb2A+GKsEu7T7SvqqdwQLgybMMDwmuHnUIA3xEusbcMQ2FVq7ojXROin3tEq8UkrvNS0MeNwg8ZDgjmjo3KF/K2pUb8C5sMzpWOftRCAAAAAElFTkSuQmCC"/></defs></svg>`);
 
@@ -34,13 +33,13 @@ export default class MarkedPlugin extends Plugin {
 		this.addCommand({
 			id: 'open-indexed-note-in-marked',
 			name: 'Open note in Marked',
-			checkCallback: this.openInMarked.bind(this)
+			checkCallback: (checking: boolean) => this.openInMarked(checking),
 		});
 
 		this.addCommand({
 			id: 'open-vault-in-marked',
 			name: 'Open vault in Marked',
-			checkCallback: this.openVaultInMarked.bind(this)
+			checkCallback: (checking: boolean) => this.openVaultInMarked(checking),
 		});
 
 		if (Platform.isMacOS) {
@@ -56,7 +55,7 @@ export default class MarkedPlugin extends Plugin {
 	}
 
 	async loadSettings() {
-		this.settings = Object.assign({}, DEFAULT_SETTINGS, await this.loadData());
+		this.settings = Object.assign({}, DEFAULT_SETTINGS, (await this.loadData()) as Partial<MarkedSettings>);
 	}
 
 	async saveSettings() {
@@ -64,39 +63,54 @@ export default class MarkedPlugin extends Plugin {
 	}
 
 	doRibbonAction() {
-		this.openInMarked(false);
+		void this.openInMarked(false);
 	};
 
-	async openVaultInMarked(checking: boolean) : Promise<boolean> {
-		if (!checking) {
-			const vaultAdapter = this.app.vault.adapter;
-			if (vaultAdapter instanceof FileSystemAdapter) {
-				const fileURL = encodeURI(vaultAdapter.getBasePath());
-				exec(`open x-marked-3://${fileURL}`);
-				new Notice(fileURL);
-			}
-			new Notice("Opened vault in Marked");
+	private async openPathInMarked(absolutePath: string): Promise<void> {
+		if (!Platform.isDesktop) {
+			return;
+		}
+
+		const { exec } = await import('child_process');
+		const markedUrl = `x-marked-3://${encodeURI(absolutePath)}`;
+		exec(`open ${JSON.stringify(markedUrl)}`);
+	}
+
+	async openVaultInMarked(checking: boolean): Promise<boolean> {
+		if (!Platform.isMacOS) {
+			return false;
+		}
+		if (checking) {
 			return true;
 		}
 
-		return Platform.isMacOS;
+		const vaultAdapter = this.app.vault.adapter;
+		if (vaultAdapter instanceof FileSystemAdapter) {
+			await this.openPathInMarked(vaultAdapter.getBasePath());
+			new Notice('Opened vault in Marked.');
+		}
+		return true;
 	}
 
-	async openInMarked(checking: boolean) : Promise<boolean> {
-		const activeFile = this.app.workspace.getActiveFile();
-
-		if (!checking) {
-			if (activeFile !== undefined) {
-				const vaultAdapter = this.app.vault.adapter;
-				if (vaultAdapter instanceof FileSystemAdapter) {
-					const fileURL = encodeURI(vaultAdapter.getFullPath(activeFile.path));
-					exec(`open 'x-marked-3://${fileURL}'`);
-				}
-				new Notice("Opened in Marked.");
-				return true;
-			}
+	async openInMarked(checking: boolean): Promise<boolean> {
+		if (!Platform.isMacOS) {
+			return false;
 		}
-		return Platform.isMacOS;
+
+		const activeFile = this.app.workspace.getActiveFile();
+		if (!activeFile) {
+			return false;
+		}
+		if (checking) {
+			return true;
+		}
+
+		const vaultAdapter = this.app.vault.adapter;
+		if (vaultAdapter instanceof FileSystemAdapter) {
+			await this.openPathInMarked(vaultAdapter.getFullPath(activeFile.path));
+			new Notice('Opened in Marked.');
+		}
+		return true;
 	};
 }
 
@@ -122,7 +136,7 @@ class MarkedSettingsTab extends PluginSettingTab {
 				.setValue(this.plugin.settings.MarkedIconColor)
 				.onChange(async (value) => {
 					this.plugin.settings.MarkedIconColor = value;
-					this.plugin.resetRibbonIcon();
+					void this.plugin.resetRibbonIcon();
 					await this.plugin.saveSettings();
 				}));
 	}
