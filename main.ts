@@ -66,17 +66,28 @@ export default class MarkedPlugin extends Plugin {
 		void this.openInMarked(false);
 	};
 
-	private async openPathInMarked(absolutePath: string): Promise<void> {
+	private openPathInMarked(absolutePath: string): void {
 		if (!Platform.isDesktop) {
 			return;
 		}
 
-		const { exec } = await import('child_process');
-		const markedUrl = `x-marked-3://${encodeURI(absolutePath)}`;
-		exec(`open ${JSON.stringify(markedUrl)}`);
+		try {
+			// Obsidian's renderer supports require() for Node builtins on desktop;
+			// dynamic import("child_process") fails silently in this environment.
+			const { exec } = require('child_process') as typeof import('child_process');
+			const markedUrl = `x-marked-3://${encodeURI(absolutePath)}`;
+			exec(`open ${JSON.stringify(markedUrl)}`, (error) => {
+				if (error) {
+					new Notice(`Failed to open Marked: ${error.message}`);
+				}
+			});
+		} catch (error) {
+			const message = error instanceof Error ? error.message : String(error);
+			new Notice(`Failed to open Marked: ${message}`);
+		}
 	}
 
-	async openVaultInMarked(checking: boolean): Promise<boolean> {
+	openVaultInMarked(checking: boolean): boolean {
 		if (!Platform.isMacOS) {
 			return false;
 		}
@@ -85,20 +96,26 @@ export default class MarkedPlugin extends Plugin {
 		}
 
 		const vaultAdapter = this.app.vault.adapter;
-		if (vaultAdapter instanceof FileSystemAdapter) {
-			await this.openPathInMarked(vaultAdapter.getBasePath());
-			new Notice('Opened vault in Marked.');
+		if (!(vaultAdapter instanceof FileSystemAdapter)) {
+			new Notice('Marked needs a local vault on disk.');
+			return false;
 		}
+
+		this.openPathInMarked(vaultAdapter.getBasePath());
+		new Notice('Opened vault in Marked.');
 		return true;
 	}
 
-	async openInMarked(checking: boolean): Promise<boolean> {
+	openInMarked(checking: boolean): boolean {
 		if (!Platform.isMacOS) {
 			return false;
 		}
 
 		const activeFile = this.app.workspace.getActiveFile();
 		if (!activeFile) {
+			if (!checking) {
+				new Notice('No active note to open in Marked.');
+			}
 			return false;
 		}
 		if (checking) {
@@ -106,10 +123,13 @@ export default class MarkedPlugin extends Plugin {
 		}
 
 		const vaultAdapter = this.app.vault.adapter;
-		if (vaultAdapter instanceof FileSystemAdapter) {
-			await this.openPathInMarked(vaultAdapter.getFullPath(activeFile.path));
-			new Notice('Opened in Marked.');
+		if (!(vaultAdapter instanceof FileSystemAdapter)) {
+			new Notice('Marked needs a local vault on disk.');
+			return false;
 		}
+
+		this.openPathInMarked(vaultAdapter.getFullPath(activeFile.path));
+		new Notice('Opened in Marked.');
 		return true;
 	};
 }
