@@ -29,30 +29,34 @@ export default class MarkedPlugin extends Plugin {
 			this.openCurrentNoteInMarked();
 		});
 
-		// Always-visible palette commands (checkCallback returning true keeps them listed).
 		this.addCommand({
 			id: 'open-vault-in-marked',
 			name: 'Open vault in Marked',
-			checkCallback: (checking: boolean) => {
-				if (checking) {
-					return true;
-				}
+			callback: () => {
 				this.openVaultInMarked();
-				return true;
 			},
 		});
 
 		this.addCommand({
 			id: 'open-indexed-note-in-marked',
 			name: 'Open current note in Marked',
-			checkCallback: (checking: boolean) => {
-				if (checking) {
-					return true;
-				}
+			callback: () => {
 				this.openCurrentNoteInMarked();
-				return true;
 			},
 		});
+
+		this.registerEvent(this.app.workspace.on('file-menu', (menu, file) => {
+			if (!(file instanceof TFile) || file.extension !== 'md') {
+				return;
+			}
+			menu.addItem((item) => {
+				item.setTitle('Open in Marked')
+					.setIcon(this.settings.MarkedIconColor)
+					.onClick(() => {
+						this.openFileInMarked(file);
+					});
+			});
+		}));
 
 		this.addSettingTab(new MarkedSettingsTab(this.app, this));
 	}
@@ -90,9 +94,9 @@ export default class MarkedPlugin extends Plugin {
 	}
 
 	private getTargetFile(): TFile | null {
-		return this.app.workspace.getActiveFile()
-			?? this.app.workspace.getActiveViewOfType(MarkdownView)?.file
-			?? this.lastFile;
+		const active = this.app.workspace.getActiveFile();
+		const markdown = this.app.workspace.getActiveViewOfType(MarkdownView)?.file ?? null;
+		return active ?? markdown ?? this.lastFile;
 	}
 
 	private openMarkedUrl(markedUrl: string): void {
@@ -100,27 +104,22 @@ export default class MarkedPlugin extends Plugin {
 			(window as Window & { require?: NodeRequire }).require
 			?? (typeof require !== 'undefined' ? require : null);
 
-		if (req) {
-			try {
-				const childProcess = req('child_process') as typeof import('child_process');
-				childProcess.exec(`open ${JSON.stringify(markedUrl)}`, (execError) => {
-					if (execError) {
-						new Notice(`Failed to open Marked: ${execError.message}`);
-					}
-				});
-				return;
-			} catch (error) {
-				console.error('Marked exec open failed', error);
-			}
+		if (!req) {
+			new Notice('Unable to open Marked from this environment.');
+			return;
 		}
 
-		// Fallback when Node require is unavailable (should be rare on desktop).
-		const anchor = document.createElement('a');
-		anchor.href = markedUrl;
-		anchor.style.display = 'none';
-		document.body.appendChild(anchor);
-		anchor.click();
-		anchor.remove();
+		try {
+			const childProcess = req('child_process') as typeof import('child_process');
+			childProcess.exec(`open ${JSON.stringify(markedUrl)}`, (execError) => {
+				if (execError) {
+					new Notice(`Failed to open Marked: ${execError.message}`);
+				}
+			});
+		} catch (error) {
+			const message = error instanceof Error ? error.message : String(error);
+			new Notice(`Failed to open Marked: ${message}`);
+		}
 	}
 
 	private openPathInMarked(absolutePath: string): void {
@@ -128,7 +127,10 @@ export default class MarkedPlugin extends Plugin {
 	}
 
 	openCurrentNoteInMarked(): void {
-		const file = this.getTargetFile();
+		this.openFileInMarked(this.getTargetFile());
+	}
+
+	openFileInMarked(file: TFile | null): void {
 		if (!file) {
 			new Notice('No active note to open in Marked.');
 			return;
@@ -141,7 +143,6 @@ export default class MarkedPlugin extends Plugin {
 		}
 
 		this.openPathInMarked(vaultAdapter.getFullPath(file.path));
-		new Notice('Opened in Marked.');
 	}
 
 	openVaultInMarked(): void {
@@ -152,7 +153,6 @@ export default class MarkedPlugin extends Plugin {
 		}
 
 		this.openPathInMarked(vaultAdapter.getBasePath());
-		new Notice('Opened vault in Marked.');
 	}
 }
 
@@ -166,7 +166,6 @@ class MarkedSettingsTab extends PluginSettingTab {
 
 	display(): void {
 		const { containerEl } = this;
-
 		containerEl.empty();
 
 		new Setting(containerEl)
