@@ -24,32 +24,33 @@ export default class MarkedPlugin extends Plugin {
 
 		await this.loadSettings();
 
-		if (Platform.isMacOS) {
-			this.ribbonIcon = this.addRibbonIcon(this.settings.MarkedIconColor, 'Marked', () => {
-				this.doRibbonAction();
-			});
-		}
+		// isDesktopOnly plugin; always expose UI on desktop. macOS is enforced at launch time.
+		this.ribbonIcon = this.addRibbonIcon(this.settings.MarkedIconColor, 'Open in Marked', () => {
+			this.doRibbonAction();
+		});
 
 		this.addCommand({
 			id: 'open-indexed-note-in-marked',
-			name: 'Open note in Marked',
-			checkCallback: (checking: boolean) => this.openInMarked(checking),
+			name: 'Open current note in Marked',
+			callback: () => {
+				this.openInMarked(false);
+			},
 		});
 
 		this.addCommand({
 			id: 'open-vault-in-marked',
 			name: 'Open vault in Marked',
-			checkCallback: (checking: boolean) => this.openVaultInMarked(checking),
+			callback: () => {
+				this.openVaultInMarked(false);
+			},
 		});
 
-		if (Platform.isMacOS) {
-			this.addSettingTab(new MarkedSettingsTab(this.app, this));
-		}
+		this.addSettingTab(new MarkedSettingsTab(this.app, this));
 	}
 
 	async resetRibbonIcon() { //Hat-tip to @liam for this elegant way of managing the plugin's ribbon button. The idea is to give the plugin the ribbon icon as an object to hold onto. Then, since the ribbon icons are a `HTMLElement`, you can `.detach()` them to remove them and re-add them, reassigning the object.
 		this.ribbonIcon.detach();
-		this.ribbonIcon = this.addRibbonIcon(this.settings.MarkedIconColor, 'Marked', () => {
+		this.ribbonIcon = this.addRibbonIcon(this.settings.MarkedIconColor, 'Open in Marked', () => {
 			this.doRibbonAction();
 		});
 	}
@@ -79,9 +80,25 @@ export default class MarkedPlugin extends Plugin {
 		return req(moduleName);
 	}
 
+	private isMacDesktop(): boolean {
+		if (Platform.isMacOS) {
+			return true;
+		}
+		try {
+			const processApi = this.nodeRequire('process') as { platform?: string };
+			return processApi?.platform === 'darwin';
+		} catch {
+			return false;
+		}
+	}
+
 	private openPathInMarked(absolutePath: string): void {
 		if (!Platform.isDesktop) {
 			new Notice('Marked is only available on desktop Obsidian.');
+			return;
+		}
+		if (!this.isMacDesktop()) {
+			new Notice('Marked is only available on macOS.');
 			return;
 		}
 
@@ -115,12 +132,10 @@ export default class MarkedPlugin extends Plugin {
 		}
 	}
 
-	openVaultInMarked(checking: boolean): boolean {
-		if (!Platform.isMacOS) {
+	openVaultInMarked(_checking: boolean): boolean {
+		if (!this.isMacDesktop()) {
+			new Notice('Marked is only available on macOS.');
 			return false;
-		}
-		if (checking) {
-			return true;
 		}
 
 		const vaultAdapter = this.app.vault.adapter;
@@ -134,20 +149,16 @@ export default class MarkedPlugin extends Plugin {
 		return true;
 	}
 
-	openInMarked(checking: boolean): boolean {
-		if (!Platform.isMacOS) {
+	openInMarked(_checking: boolean): boolean {
+		if (!this.isMacDesktop()) {
+			new Notice('Marked is only available on macOS.');
 			return false;
 		}
 
 		const activeFile = this.app.workspace.getActiveFile();
 		if (!activeFile) {
-			if (!checking) {
-				new Notice('No active note to open in Marked.');
-			}
+			new Notice('No active note to open in Marked.');
 			return false;
-		}
-		if (checking) {
-			return true;
 		}
 
 		const vaultAdapter = this.app.vault.adapter;

@@ -1,7 +1,7 @@
 {
 	"id": "open-in-marked",
 	"name": "Open in Marked",
-	"version": "1.2.2",
+	"version": "1.2.3",
 	"minAppVersion": "1.5.12",
 	"description": "Open the current note or vault in Marked 3.",
 	"author": "ttscoff",
