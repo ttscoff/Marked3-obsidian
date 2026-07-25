@@ -63,20 +63,48 @@ export default class MarkedPlugin extends Plugin {
 	}
 
 	doRibbonAction() {
-		void this.openInMarked(false);
+		this.openInMarked(false);
 	};
+
+	private nodeRequire(moduleName: string): unknown {
+		const req =
+			typeof window !== 'undefined' && (window as Window & { require?: NodeRequire }).require
+				? (window as Window & { require: NodeRequire }).require
+				: typeof require !== 'undefined'
+					? require
+					: null;
+		if (!req) {
+			throw new Error('Node require() is not available in this Obsidian process');
+		}
+		return req(moduleName);
+	}
 
 	private openPathInMarked(absolutePath: string): void {
 		if (!Platform.isDesktop) {
+			new Notice('Marked is only available on desktop Obsidian.');
 			return;
 		}
 
+		const markedUrl = `x-marked-3://${encodeURI(absolutePath)}`;
+
 		try {
-			// Obsidian's renderer supports require() for Node builtins on desktop;
-			// dynamic import("child_process") fails silently in this environment.
-			const { exec } = require('child_process') as typeof import('child_process');
-			const markedUrl = `x-marked-3://${encodeURI(absolutePath)}`;
-			exec(`open ${JSON.stringify(markedUrl)}`, (error) => {
+			const electron = this.nodeRequire('electron') as {
+				shell?: { openExternal: (url: string) => Promise<void> | void };
+			};
+			if (electron?.shell?.openExternal) {
+				void Promise.resolve(electron.shell.openExternal(markedUrl)).catch((error: unknown) => {
+					const message = error instanceof Error ? error.message : String(error);
+					new Notice(`Failed to open Marked: ${message}`);
+				});
+				return;
+			}
+		} catch {
+			// Fall through to macOS `open`.
+		}
+
+		try {
+			const childProcess = this.nodeRequire('child_process') as typeof import('child_process');
+			childProcess.exec(`open ${JSON.stringify(markedUrl)}`, (error) => {
 				if (error) {
 					new Notice(`Failed to open Marked: ${error.message}`);
 				}
