@@ -15,6 +15,7 @@ const DEFAULT_SETTINGS: MarkedSettings = {
 export default class MarkedPlugin extends Plugin {
 	settings: MarkedSettings;
 	ribbonIcon: HTMLElement;
+	private lastFile: TFile | null = null;
 
 	constructor(app: App, pluginManifest: PluginManifest) {
 		super(app, pluginManifest);
@@ -22,34 +23,61 @@ export default class MarkedPlugin extends Plugin {
 
 	async onload() {
 		await this.loadSettings();
+		this.trackActiveFile();
 
 		this.ribbonIcon = this.addRibbonIcon(this.settings.MarkedIconColor, 'Marked', () => {
-			this.doRibbonAction();
+			this.openCurrentNoteInMarked();
+		});
+
+		// Always-visible palette commands (checkCallback returning true keeps them listed).
+		this.addCommand({
+			id: 'open-vault-in-marked',
+			name: 'Open vault in Marked',
+			checkCallback: (checking: boolean) => {
+				if (checking) {
+					return true;
+				}
+				this.openVaultInMarked();
+				return true;
+			},
 		});
 
 		this.addCommand({
 			id: 'open-indexed-note-in-marked',
 			name: 'Open current note in Marked',
-			callback: () => {
-				this.openFileInMarked(this.getTargetFile());
-			},
-		});
-
-		this.addCommand({
-			id: 'open-vault-in-marked',
-			name: 'Open vault in Marked',
-			callback: () => {
-				this.openVaultInMarked();
+			checkCallback: (checking: boolean) => {
+				if (checking) {
+					return true;
+				}
+				this.openCurrentNoteInMarked();
+				return true;
 			},
 		});
 
 		this.addSettingTab(new MarkedSettingsTab(this.app, this));
 	}
 
+	private trackActiveFile() {
+		this.lastFile = this.app.workspace.getActiveFile();
+
+		this.registerEvent(this.app.workspace.on('file-open', (file) => {
+			if (file) {
+				this.lastFile = file;
+			}
+		}));
+
+		this.registerEvent(this.app.workspace.on('active-leaf-change', () => {
+			const file = this.app.workspace.getActiveFile();
+			if (file) {
+				this.lastFile = file;
+			}
+		}));
+	}
+
 	async resetRibbonIcon() {
 		this.ribbonIcon.detach();
 		this.ribbonIcon = this.addRibbonIcon(this.settings.MarkedIconColor, 'Marked', () => {
-			this.doRibbonAction();
+			this.openCurrentNoteInMarked();
 		});
 	}
 
@@ -61,118 +89,70 @@ export default class MarkedPlugin extends Plugin {
 		await this.saveData(this.settings);
 	}
 
-	doRibbonAction() {
-		this.openFileInMarked(this.getTargetFile());
-	}
-
 	private getTargetFile(): TFile | null {
-		const active = this.app.workspace.getActiveFile();
-		if (active) {
-			return active;
-		}
-
-		const markdownView = this.app.workspace.getActiveViewOfType(MarkdownView);
-		if (markdownView?.file) {
-			return markdownView.file;
-		}
-
-		const leaf = this.app.workspace.getMostRecentLeaf();
-		const view = leaf?.view;
-		if (view instanceof MarkdownView && view.file) {
-			return view.file;
-		}
-
-		return null;
+		return this.app.workspace.getActiveFile()
+			?? this.app.workspace.getActiveViewOfType(MarkdownView)?.file
+			?? this.lastFile;
 	}
 
-	private nodeRequire(moduleName: string): unknown {
+	private openMarkedUrl(markedUrl: string): void {
 		const req =
-			typeof window !== 'undefined' && (window as Window & { require?: NodeRequire }).require
-				? (window as Window & { require: NodeRequire }).require
-				: typeof require !== 'undefined'
-					? require
-					: null;
-		if (!req) {
-			throw new Error('Node require() is not available in this Obsidian process');
-		}
-		return req(moduleName);
-	}
+			(window as Window & { require?: NodeRequire }).require
+			?? (typeof require !== 'undefined' ? require : null);
 
-	private isMacDesktop(): boolean {
-		if (Platform.isMacOS) {
-			return true;
+		if (req) {
+			try {
+				const childProcess = req('child_process') as typeof import('child_process');
+				childProcess.exec(`open ${JSON.stringify(markedUrl)}`, (execError) => {
+					if (execError) {
+						new Notice(`Failed to open Marked: ${execError.message}`);
+					}
+				});
+				return;
+			} catch (error) {
+				console.error('Marked exec open failed', error);
+			}
 		}
-		try {
-			const processApi = this.nodeRequire('process') as { platform?: string };
-			return processApi?.platform === 'darwin';
-		} catch {
-			return false;
-		}
+
+		// Fallback when Node require is unavailable (should be rare on desktop).
+		const anchor = document.createElement('a');
+		anchor.href = markedUrl;
+		anchor.style.display = 'none';
+		document.body.appendChild(anchor);
+		anchor.click();
+		anchor.remove();
 	}
 
 	private openPathInMarked(absolutePath: string): void {
-		if (!Platform.isDesktop) {
-			new Notice('Marked is only available on desktop Obsidian.');
-			return;
-		}
-		if (!this.isMacDesktop()) {
-			new Notice('Marked is only available on macOS.');
-			return;
-		}
-
-		// Prefer macOS `open` for custom URL schemes — more reliable than shell.openExternal
-		// when invoked from the command palette.
-		const markedUrl = `x-marked-3://${encodeURI(absolutePath)}`;
-		try {
-			const childProcess = this.nodeRequire('child_process') as typeof import('child_process');
-			childProcess.exec(`open ${JSON.stringify(markedUrl)}`, (error) => {
-				if (error) {
-					new Notice(`Failed to open Marked: ${error.message}`);
-				}
-			});
-		} catch (error) {
-			const message = error instanceof Error ? error.message : String(error);
-			new Notice(`Failed to open Marked: ${message}`);
-		}
+		this.openMarkedUrl(`x-marked-3://${encodeURI(absolutePath)}`);
 	}
 
-	openVaultInMarked(): boolean {
-		if (!this.isMacDesktop()) {
-			new Notice('Marked is only available on macOS.');
-			return false;
-		}
-
-		const vaultAdapter = this.app.vault.adapter;
-		if (!(vaultAdapter instanceof FileSystemAdapter)) {
-			new Notice('Marked needs a local vault on disk.');
-			return false;
-		}
-
-		this.openPathInMarked(vaultAdapter.getBasePath());
-		new Notice('Opened vault in Marked.');
-		return true;
-	}
-
-	openFileInMarked(file: TFile | null): boolean {
-		if (!this.isMacDesktop()) {
-			new Notice('Marked is only available on macOS.');
-			return false;
-		}
-
+	openCurrentNoteInMarked(): void {
+		const file = this.getTargetFile();
 		if (!file) {
 			new Notice('No active note to open in Marked.');
-			return false;
+			return;
 		}
 
 		const vaultAdapter = this.app.vault.adapter;
 		if (!(vaultAdapter instanceof FileSystemAdapter)) {
 			new Notice('Marked needs a local vault on disk.');
-			return false;
+			return;
 		}
 
 		this.openPathInMarked(vaultAdapter.getFullPath(file.path));
 		new Notice('Opened in Marked.');
-		return true;
+	}
+
+	openVaultInMarked(): void {
+		const vaultAdapter = this.app.vault.adapter;
+		if (!(vaultAdapter instanceof FileSystemAdapter)) {
+			new Notice('Marked needs a local vault on disk.');
+			return;
+		}
+
+		this.openPathInMarked(vaultAdapter.getBasePath());
+		new Notice('Opened vault in Marked.');
 	}
 }
 
